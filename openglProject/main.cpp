@@ -240,7 +240,7 @@ class Chunk {
 public:
     BlockType blocks[CHUNK_SIZE][WORLD_HEIGHT][CHUNK_SIZE];
     int chunkX, chunkZ;
-    std::vector<float> vertices; 
+    std::vector<float> vertices;
     std::vector<unsigned int> indices;
     unsigned int VAO, VBO, EBO;
     bool needsUpdate = true;
@@ -298,34 +298,46 @@ public:
                         int treeHeight = 4 + (gen() % 2);
 
                         // Tree trunk
+                        //IMPORTANT y only goes to baseHeight + treeHeight -1 and we finally use baseHeight + treeHeight in  int leafY = baseHeight + treeHeight - 2 + dy; when dy is 2 and if (baseHeight + treeHeight < WORLD_HEIGHT) {blocks[x][baseHeight + treeHeight][z] = LEAVES; also places at y =  baseHeight + treeHeight
                         for (int y = baseHeight; y < baseHeight + treeHeight; y++) {
                             if (y < WORLD_HEIGHT) blocks[x][y][z] = WOOD;
                         }
+                        int dx = x;
+                        int dz = z - 2;
+                        if (dx >= 0 && dx < CHUNK_SIZE && dz >= 0 && dz < CHUNK_SIZE) {
+                            if (blocks[dx][baseHeight + treeHeight - 1][dz] == AIR) {
+                                blocks[dx][baseHeight + treeHeight - 1][dz] = LEAVES;
 
-                        // Tree leaves (larger, more natural shape)
-                        for (int dx = -2; dx <= 2; dx++) {
-                            for (int dz = -2; dz <= 2; dz++) {
-                                for (int dy = 0; dy < 3; dy++) {
-                                    int leafY = baseHeight + treeHeight - 2 + dy;
-
-                                    // Create rounded leaf shape
-                                    if (abs(dx) + abs(dz) <= 2 + (dy == 1 ? 1 : 0)) {
-                                        if (leafY < WORLD_HEIGHT &&
-                                            x + dx >= 0 && x + dx < CHUNK_SIZE &&
-                                            z + dz >= 0 && z + dz < CHUNK_SIZE) {
-                                            if (blocks[x + dx][leafY][z + dz] == AIR) {
-                                                blocks[x + dx][leafY][z + dz] = LEAVES;
-                                            }
-                                        }
-                                    }
+                                int dz2 = z + 2;
+                                if (dz2 >= 0 && dz2 < CHUNK_SIZE) {
+                                    std::cout << "dx: " << dx << ", y: " << baseHeight + treeHeight - 1 << ", dz2: " << dz2 << "\n";
+                                    blocks[dx][baseHeight + treeHeight - 1][dz2] = STONE;
                                 }
+
                             }
                         }
+                        // Tree leaves (larger, more natural shape)
+                        //for (int dx = -2; dx <= 5; dx++) {
+                        //    for (int dz = -2; dz <=5; dz++) {
+                        //        for (int dy = 0; dy < 3; dy++) {
+                        //            int leafY = baseHeight + treeHeight - 2 + dy;
 
-                        // Top of tree
-                        if (baseHeight + treeHeight < WORLD_HEIGHT) {
-                            blocks[x][baseHeight + treeHeight][z] = LEAVES;
-                        }
+                        //            // Create rounded leaf shape
+                        //            if (leafY < WORLD_HEIGHT &&
+                        //                x + dx >= 0 && x + dx < CHUNK_SIZE &&
+                        //                z + dz >= 0 && z + dz < CHUNK_SIZE) {
+                        //                blocks[x + dx][leafY][z + dz] = LEAVES;
+                        //            }
+                        //        }
+                        //    }
+                        //}
+
+
+
+                        //// Top of tree
+                        //if (baseHeight + treeHeight < WORLD_HEIGHT) {
+                        //    blocks[x][baseHeight + treeHeight][z] = LEAVES;
+                        //}
                     }
                 }
             }
@@ -383,9 +395,9 @@ public:
                     //NOTE TO SELF: if we only have one iteration in generateTerrain function   for (int x = 0; x < 1; x++) {   for (int y = 0; y < 1; y++) { other unassigned indices of     BlockType blocks[CHUNK_SIZE][WORLD_HEIGHT][CHUNK_SIZE]; is 0 or AIR but can check to make sure, so at (0, 0, 0), faces checks like (0, + 1, 0) would be those unassigned indices which are AIR and if we check return blocks[x][y][z] != AIR; in the function we get false and we negate false in the array "bool faces[6] " for it to be true to render the face
                     //NOTE TO SELF: RENDERS EXTERIOR OF CUBE NOT FACES INSIDE CHUNK, VIEW RENDERING_FACE image saved on pc for reference
                     bool faces[6] = {
-          
 
-                         
+
+
                         !isBlockSolid(x, y, z + 1), // front
                         !isBlockSolid(x, y, z - 1), // Back
                         !isBlockSolid(x - 1, y, z), // left
@@ -397,12 +409,12 @@ public:
                     for (int face = 0; face < 6; face++) {
                         //if (face == 4) std::cout << "top face rendered: " << faces[face]  << ",     x: " << x << ", y: " << y << ", z: " << z << "\n";
                         if (!faces[face]) continue;
-
+                        //TO UNDERSTAND: vertices.push_back(blockVertices[vertexIndex * 8 + 0] + pos.x );vertices.push_back(blockVertices[vertexIndex * 8 + 1] + pos.y); vertices.push_back(blockVertices[vertexIndex * 8 + 2] + pos.z);  it is just a little bit of math involved. So, say we focus on just one vertex like (0.5, 0.5, 0.5) we know that the next block should be 1 units away, so we shift all the vertices that make the cube one units in any direction we want,  but lets just focus on one vertex for simplicity. So, if we use the for loop "  for (int x = 0; x < CHUNK_SIZE; x++) {    for (int y = 0; y < WORLD_HEIGHT; y++) {or (int z = 0; z < CHUNK_SIZE; z++) {" for the placements, and do +x for x vertex, + y for y vertex, and +z for z vertex, it would correctly place the blocks around the world, but the problem is this is for one function call, but say we call the same function again, we would still be doing + x, +y, and +z (the same increments) for the vertices so it is like we are spreading the blocks on the same small area each time, but we want to make sure for each function call we are spreading the blocks in different locations not in the previous one. So, say we used +x, + y, +z for the first call, the max spread should be 0.5 + 15 for x, and 0.5 + 63 for y and 0.5 + 15 for z, because of the foroop for x, y, and z for (int x = 0; x < CHUNK_SIZE; x++) {for (int y = 0; y < WORLD_HEIGHT; y++) {  for (int z = 0; z < CHUNK_SIZE; z++) {, and again if we call again we would spreading in the same location till e 0.5 + 15 for x, and 0.5 + 63 for y and 0.5 + 15 for z, , but in this second function call we need to start at 0.5 + 16 for x, and honesty 0.5 + y is perfectly fine(our spread is most focused on the x and z axis), and z should start at 0.5 + 16 and since we have a total of 16 iterations for x, and z, we should be at 0.5 + 31  for x and 0.5 + 31 for z, and again if we call the function the third time, we should start at incrment 32 to 47 and if we keep doing this we will notice a pattern, so 0.5 + 0 - 15, 0.5 + 16 -32, ... we can use CHUNK_SIZE to help us place the new correct position and this is because first 0-15, 16 -31, ... all iterations uses the next 16 position so if we start first and say chunkX is 0 we do 0 * 16 + x for x position, 0 * 16 + z for z position and that would perfectly give us 0-15, and again for second iteration we do 1 * 16 + x for x position, 1 * 16 + z for z that gives us 16 -31 perfectly, so we dont have to dont have to use the magic number 16 which is just CHUNK_SIZE, so replace 16 with CHUNK_SIZE and for 0, 1, 2... that can be ChunkX and ChunkZ, and there are incremented for each call which is what " for (int x = playerChunkX - RENDER_DISTANCE; x <= playerChunkX + RENDER_DISTANCE; x++) {for (int z = playerChunkZ - RENDER_DISTANCE; z <= playerChunkZ + RENDER_DISTANCE; z++) {  Chunk* chunk = getChunk(x, z);chunk->render(); 
                         // Add vertices for this face (position, normal, texcoord, blocktype)
                         for (int i = 0; i < 4; i++) {
                             int vertexIndex = face * 4 + i;
                             // Position
-                            vertices.push_back(blockVertices[vertexIndex * 8 + 0] + pos.x );
+                            vertices.push_back(blockVertices[vertexIndex * 8 + 0] + pos.x);
                             vertices.push_back(blockVertices[vertexIndex * 8 + 1] + pos.y);
                             vertices.push_back(blockVertices[vertexIndex * 8 + 2] + pos.z);
                             // Normal
@@ -525,18 +537,18 @@ public:
         int playerChunkX = (int)floor(playerPos.x / CHUNK_SIZE);
         int playerChunkZ = (int)floor(playerPos.z / CHUNK_SIZE);
 
-       /* std::cout << "playerPos.x: " << playerPos.x << "\n";
-        std::cout << "playerChunkX: " << playerChunkX << "\n";*/
-       /* std::cout << "playerPos.x: " << playerPos.x << ", playerPos.z: " << playerPos.z << '\n';
-        std::cout << "playerChunkX: " << playerChunkX << ", playerChunkZ: " << playerChunkZ << '\n';*/
-
-        for (int x = playerChunkX - RENDER_DISTANCE; x <= playerChunkX + RENDER_DISTANCE; x++) {
-            for (int z = playerChunkZ - RENDER_DISTANCE; z <= playerChunkZ + RENDER_DISTANCE; z++) {
-               // std::cout << "x: " << x << "\n";
-                Chunk* chunk = getChunk(x, z);
-                chunk->render();
+        /* std::cout << "playerPos.x: " << playerPos.x << "\n";
+         std::cout << "playerChunkX: " << playerChunkX << "\n";*/
+         /* std::cout << "playerPos.x: " << playerPos.x << ", playerPos.z: " << playerPos.z << '\n';
+          std::cout << "playerChunkX: " << playerChunkX << ", playerChunkZ: " << playerChunkZ << '\n';*/
+        \
+            for (int x = playerChunkX - RENDER_DISTANCE; x <= playerChunkX + RENDER_DISTANCE; x++) {
+                for (int z = playerChunkZ - RENDER_DISTANCE; z <= playerChunkZ + RENDER_DISTANCE; z++) {
+                    // std::cout << "x: " << x << "\n";
+                    Chunk* chunk = getChunk(x, z);
+                    chunk->render();
+                }
             }
-        }
     }
 
     ~World() {
@@ -689,7 +701,7 @@ void processInput(GLFWwindow* window, float deltaTime) {
 
 // Main function
 int main() {
-   
+
     std::cout << "\n";
     // Initialize GLFW
     if (!glfwInit()) {
@@ -722,10 +734,10 @@ int main() {
 
     // OpenGL settings
     glEnable(GL_DEPTH_TEST);
-   /* glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);*/
+    /* glEnable(GL_CULL_FACE);
+     glCullFace(GL_BACK);*/
 
-    // Create shader program
+     // Create shader program
     unsigned int shaderProgram = createShaderProgram();
 
     // Game loop timing
@@ -736,7 +748,7 @@ int main() {
     // Generate initial chunks around spawn
     for (int x = -2; x <= 2; x++) {
         for (int z = -2; z <= 2; z++) {
-           //world.getChunk(x, z)->render();
+            //world.getChunk(x, z)->render();
         }
     }
     std::cout << "Counter: " << counter << "\n";
