@@ -234,6 +234,7 @@ float interpolatedNoise(float x, float z, int seed) {
 
     return total;
 }
+int counter = 0;
 
 // World/Chunk Management
 class Chunk {
@@ -282,13 +283,17 @@ public:
                         blocks[x][y][z] = GRASS;
                     }
                     else {
-                        blocks[x][y][z] = AIR;
+                        if (blocks[x][y][z] != LEAVES ) {
+                            blocks[x][y][z] = AIR;
+                        }
+                        
                     }
                 }
 
                 // Better tree generation
                  //NOTE TO SELF: To explain what is happening here for blocks[x][baseHeight - 1][z] == GRASS, this condition is always true because in the previous for loop "for (int y = 0; y < WORLD_HEIGHT; y++) " we always use y = baseHeight - 1 for grass, and we are using the same x and z from the outer loop "for (int x = 0; x < CHUNK_SIZE; x++) {" '  for (int z = 0; z < CHUNK_SIZE; z++) {" in the previous for loop and this condition, thus since x, and z, are the same and y(baseHeight -1 ) in addition to this was used for grass, and in the if statement we use the same x and z, and same y, it always has to be true
                 //NOTE TO SELF: The reason we need this condition "x > 2 && x < CHUNK_SIZE - 3 && z > 2 && z < CHUNK_SIZE - 3" is because of   if (blocks[x + dx][leafY][z + dz] == AIR), if x was less than 2, say 1, the minimum of dx is -2, so we would be doing 1 + -2, which is -1, and we cant have negative index, and we need x and z to not be greater than CHUNK_SIZE - 3 because if it is like for example if it was 14(note CHUNK_SIZE - 3 is 16 -3 = 13), and we know the maximum number for dx and dz is 2, we would do 14 + 2 which is 16 and note the blocks array is   BlockType blocks[CHUNK_SIZE][WORLD_HEIGHT][CHUNK_SIZE];, so we could be doing something like blocks[16][leafY][16] but we cannot access index 16 since the size is 16(valid indices includes 0 - 15), but we don't need to make thisi condition strict because    x >= 2 && x <= CHUNK_SIZE - 3 && z >= 2 && z <= CHUNK_SIZE - 3 also works if x and z are 2 we get 0 with like dx+ x, and 13 or CHUNK_SIZE -3 + dx maximum which is 2, is 15 which is valid
+               // Better tree generation
                 if (blocks[x][baseHeight - 1][z] == GRASS &&
                     x > 2 && x < CHUNK_SIZE - 3 && z > 2 && z < CHUNK_SIZE - 3) {
 
@@ -297,47 +302,78 @@ public:
                     if (treeNoise > 0.85) {
                         int treeHeight = 4 + (gen() % 2);
 
-                        // Tree trunk
-                        //IMPORTANT y only goes to baseHeight + treeHeight -1 and we finally use baseHeight + treeHeight in  int leafY = baseHeight + treeHeight - 2 + dy; when dy is 2 and if (baseHeight + treeHeight < WORLD_HEIGHT) {blocks[x][baseHeight + treeHeight][z] = LEAVES; also places at y =  baseHeight + treeHeight
-                        for (int y = baseHeight; y < baseHeight + treeHeight; y++) {
-                            if (y < WORLD_HEIGHT) blocks[x][y][z] = WOOD;
-                        }
-                        int dx = x;
-                        int dz = z - 2;
-                        if (dx >= 0 && dx < CHUNK_SIZE && dz >= 0 && dz < CHUNK_SIZE) {
-                            if (blocks[dx][baseHeight + treeHeight - 1][dz] == AIR) {
-                                blocks[dx][baseHeight + treeHeight - 1][dz] = LEAVES;
+                        // IMPROVED: Check for nearby trees in a larger radius
+                        bool shouldPlaceTree = true;
+                        int checkRadius = 6; // Increased from 5
 
-                                int dz2 = z + 2;
-                                if (dz2 >= 0 && dz2 < CHUNK_SIZE) {
-                                    std::cout << "dx: " << dx << ", y: " << baseHeight + treeHeight - 1 << ", dz2: " << dz2 << "\n";
-                                    blocks[dx][baseHeight + treeHeight - 1][dz2] = STONE;
+                        for (int checkX = x - checkRadius; checkX <= x + checkRadius; ++checkX) {
+                            if (!shouldPlaceTree) break;
+                            for (int checkZ = z - checkRadius; checkZ <= z + checkRadius; ++checkZ) {
+                                // Skip the center position
+                                if (checkX == x && checkZ == z) continue;
+
+                                // Check if within chunk bounds
+                                if (checkX >= 0 && checkX < CHUNK_SIZE &&
+                                    checkZ >= 0 && checkZ < CHUNK_SIZE) {
+
+                                    // Check for wood blocks at multiple heights (tree trunks)
+                                    for (int checkY = baseHeight; checkY < baseHeight + treeHeight + 2; ++checkY) {
+                                        if (checkY < WORLD_HEIGHT && blocks[checkX][checkY][checkZ] == WOOD) {
+                                            shouldPlaceTree = false;
+                                            break;
+                                        }
+                                    }
                                 }
-
                             }
                         }
-                        // Tree leaves (larger, more natural shape)
-                        //for (int dx = -2; dx <= 5; dx++) {
-                        //    for (int dz = -2; dz <=5; dz++) {
-                        //        for (int dy = 0; dy < 3; dy++) {
-                        //            int leafY = baseHeight + treeHeight - 2 + dy;
 
-                        //            // Create rounded leaf shape
-                        //            if (leafY < WORLD_HEIGHT &&
-                        //                x + dx >= 0 && x + dx < CHUNK_SIZE &&
-                        //                z + dz >= 0 && z + dz < CHUNK_SIZE) {
-                        //                blocks[x + dx][leafY][z + dz] = LEAVES;
-                        //            }
-                        //        }
-                        //    }
-                        //}
+                        if (shouldPlaceTree) {
+                            // Place tree trunk
+                            for (int y = baseHeight; y < baseHeight + treeHeight; y++) {
+                                if (y < WORLD_HEIGHT) blocks[x][y][z] = WOOD;
+                            }
 
+                            // IMPROVED: Better leaf placement with fixed size
+                            // Create a more compact, spherical leaf structure
+                            for (int dy = baseHeight + treeHeight - 2; dy <= baseHeight + treeHeight + 1; ++dy) {
+                                if (dy >= WORLD_HEIGHT) break;
 
+                                // Determine leaf radius for this layer
+                                int radius;
+                                if (dy == baseHeight + treeHeight + 1) {
+                                    radius = 0; // Top single block
+                                }
+                                else if (dy == baseHeight + treeHeight) {
+                                    radius = 1; // Near top
+                                }
+                                else {
+                                    radius = 2; // Lower layers
+                                }
 
-                        //// Top of tree
-                        //if (baseHeight + treeHeight < WORLD_HEIGHT) {
-                        //    blocks[x][baseHeight + treeHeight][z] = LEAVES;
-                        //}
+                                for (int dx = -radius; dx <= radius; ++dx) {
+                                    for (int dz = -radius; dz <= radius; ++dz) {
+                                        int leafX = x + dx;
+                                        int leafZ = z + dz;
+
+                                        // Skip the trunk column for lower leaves
+                                        if (dx == 0 && dz == 0 && dy < baseHeight + treeHeight) {
+                                            continue;
+                                        }
+
+                                        // Check bounds
+                                        if (leafX >= 0 && leafX < CHUNK_SIZE &&
+                                            leafZ >= 0 && leafZ < CHUNK_SIZE) {
+
+                                            // Optional: Create more natural rounded shape
+                                            int distSq = dx * dx + dz * dz;
+                                            if (distSq <= radius * radius) {
+                                                blocks[leafX][dy][leafZ] = LEAVES;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
